@@ -22,7 +22,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24'
+          flutter-version: '3.27.0'
           channel: 'stable'
 
       - name: Cache pub dependencies
@@ -31,6 +31,9 @@ jobs:
           path: ~/.pub-cache
           key: ${{ runner.os }}-pub-${{ hashFiles('pubspec.yaml') }}
           restore-keys: ${{ runner.os }}-pub-
+
+      - name: Flutter doctor
+        run: flutter doctor -v
 
       - name: Install Flutter dependencies
         run: flutter pub get
@@ -44,20 +47,12 @@ jobs:
             /tmp/gradle-8.3/bin/gradle wrapper --gradle-version 8.3
           fi
 
-      - name: Build APK (split per ABI)
-        run: flutter build apk --release --split-per-abi
+      - name: Build APK
+        run: flutter build apk --release --split-per-abi 2>&1
 
-      - name: Build universal APK
-        run: flutter build apk --release
-
-      - name: Upload ABI-split APKs
+      - name: Upload APKs
         uses: actions/upload-artifact@v4
+        if: success()
         with:
-          name: apk-split
-          path: build/app/outputs/flutter-apk/app-*-release.apk
-
-      - name: Upload universal APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-universal
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: swift-vpn-apk
+          path: build/app/outputs/flutter-apk/*.apk

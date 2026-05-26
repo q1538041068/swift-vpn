@@ -9,7 +9,7 @@ pluginManagement {
         }
     }
     if (flutterSdkPath == null) {
-        throw new GradleException("Flutter SDK not found. Set FLUTTER_ROOT env var.")
+        throw new RuntimeException("Flutter SDK not found. Set FLUTTER_ROOT env var.")
     }
 
     includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
