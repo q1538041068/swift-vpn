@@ -83,7 +83,7 @@ class VpnService {
     _errorMessage = null;
 
     try {
-      final v2rayConfig = node.toV2RayConfig(
+      final v2rayConfig = node.toSingBoxConfig(
         config.socksPort,
         config.httpPort,
       );

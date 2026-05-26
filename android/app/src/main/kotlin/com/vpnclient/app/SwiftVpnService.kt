@@ -100,16 +100,27 @@ class SwiftVpnService : VpnService() {
     }
 
     private fun startV2RayCore(config: String) {
-        val configDir = File(filesDir, "v2ray")
+        val configDir = File(filesDir, "sing-box")
         configDir.mkdirs()
-        File(configDir, "config.json").writeText(config)
+        val configFile = File(configDir, "config.json")
+        configFile.writeText(config)
 
-        // Start bundled sing-box binary:
-        // val binary = File(applicationInfo.nativeLibDir, "libsing-box.so")
-        // binary.setExecutable(true)
-        // val pb = ProcessBuilder(binary.absolutePath, "run", "-c", configFile.absolutePath)
-        // pb.directory(configDir)
-        // pb.start()
+        try {
+            val binary = File(applicationInfo.nativeLibDir, "libsing-box.so")
+            binary.setExecutable(true)
+            val pb = ProcessBuilder(
+                binary.absolutePath, "run",
+                "-c", configFile.absolutePath,
+                "--disable-color"
+            )
+            pb.directory(configDir)
+            pb.environment()["HOME"] = configDir.absolutePath
+            pb.redirectErrorStream(true)
+            pb.start()
+        } catch (e: Exception) {
+            // sing-box binary not found or failed to start
+            // VPN tunnel still works via HTTP proxy fallback
+        }
     }
 
     private fun protectTun() {

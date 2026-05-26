@@ -69,86 +69,90 @@ class ProxyNode {
     return '';
   }
 
-  /// Build V2Ray JSON config string from this node
-  String toV2RayConfig(int socksPort, int httpPort) {
+  /// Build sing-box JSON config from this node
+  String toSingBoxConfig(int socksPort, int httpPort) {
     switch (type) {
       case ProxyType.vmess:
         return jsonEncode({
           'inbounds': [
             {
-              'port': socksPort,
-              'protocol': 'socks',
-              'settings': {'auth': 'noauth', 'udp': true}
+              'type': 'socks',
+              'listen': '127.0.0.1',
+              'listen_port': socksPort,
             },
             {
-              'port': httpPort,
-              'protocol': 'http',
-              'settings': {'timeout': 360}
+              'type': 'http',
+              'listen': '127.0.0.1',
+              'listen_port': httpPort,
             }
           ],
           'outbounds': [
             {
-              'protocol': 'vmess',
-              'settings': {
-                'vnext': [
-                  {
-                    'address': address,
-                    'port': port,
-                    'users': [
-                      {
-                        'id': vmessUuid ?? '',
-                        'alterId': vmessAlterId ?? 0,
-                        'security': vmessSecurity ?? 'auto'
-                      }
-                    ]
-                  }
-                ]
-              },
-              'streamSettings': {
-                'network': vmessNetwork ?? 'tcp',
-                if (vmessNetwork == 'ws') ...{
-                  'wsSettings': {
+              'type': 'vmess',
+              'tag': 'proxy',
+              'server': address,
+              'server_port': port,
+              'uuid': vmessUuid ?? '',
+              'alter_id': vmessAlterId ?? 0,
+              'security': vmessSecurity ?? 'auto',
+              if (vmessNetwork != null && vmessNetwork != 'tcp')
+                'transport': {
+                  'type': vmessNetwork,
+                  if (vmessNetwork == 'ws') ...{
                     'path': vmessPath ?? '/',
-                    'headers': {'Host': vmessHost ?? address}
+                    if (vmessHost != null && vmessHost!.isNotEmpty)
+                      'headers': {'Host': vmessHost},
                   }
                 },
-                'security': (vmessTls == 'tls') ? 'tls' : 'none',
-                if (vmessTls == 'tls') ...{
-                  'tlsSettings': {'serverName': vmessHost ?? address}
-                }
-              }
-            }
-          ]
+              if (vmessTls == 'tls')
+                'tls': {
+                  'enabled': true,
+                  'server_name': vmessHost ?? address,
+                },
+            },
+            {'type': 'direct', 'tag': 'direct'}
+          ],
+          'route': {
+            'rules': [
+              {
+                'protocol': 'dns',
+                'outbound': 'direct',
+              },
+            ],
+            'final': 'proxy',
+          },
         });
       case ProxyType.shadowsocks:
         return jsonEncode({
           'inbounds': [
             {
-              'port': socksPort,
-              'protocol': 'socks',
-              'settings': {'auth': 'noauth', 'udp': true}
+              'type': 'socks',
+              'listen': '127.0.0.1',
+              'listen_port': socksPort,
             },
             {
-              'port': httpPort,
-              'protocol': 'http',
-              'settings': {'timeout': 360}
+              'type': 'http',
+              'listen': '127.0.0.1',
+              'listen_port': httpPort,
             }
           ],
           'outbounds': [
             {
-              'protocol': 'shadowsocks',
-              'settings': {
-                'servers': [
-                  {
-                    'address': address,
-                    'port': port,
-                    'method': ssMethod ?? 'aes-256-gcm',
-                    'password': ssPassword ?? ''
-                  }
-                ]
-              }
-            }
-          ]
+              'type': 'shadowsocks',
+              'tag': 'proxy',
+              'server': address,
+              'server_port': port,
+              'method': ssMethod ?? 'aes-256-gcm',
+              'password': ssPassword ?? '',
+            },
+            {'type': 'direct', 'tag': 'direct'}
+          ],
+          'route': {
+            'rules': [
+              {'protocol': 'dns', 'outbound': 'direct'},
+            ],
+            'final': 'proxy',
+          },
         });
       default:
         return '{}';
