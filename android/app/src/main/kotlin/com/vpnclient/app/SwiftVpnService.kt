@@ -100,16 +100,15 @@ class SwiftVpnService : VpnService() {
     }
 
     private fun startV2RayCore(config: String) {
-        val configDir = File(filesDir, "sing-box")
-        configDir.mkdirs()
-        val configFile = File(configDir, "config.json")
-        configFile.writeText(config)
-
         try {
-            val binary = File(applicationInfo.nativeLibDir, "libsing-box.so")
-            binary.setExecutable(true)
+            val binaryPath = prepareBinary()
+            val configDir = File(filesDir, "sing-box")
+            configDir.mkdirs()
+            val configFile = File(configDir, "config.json")
+            configFile.writeText(config)
+
             val pb = ProcessBuilder(
-                binary.absolutePath, "run",
+                binaryPath, "run",
                 "-c", configFile.absolutePath,
                 "--disable-color"
             )
@@ -118,9 +117,28 @@ class SwiftVpnService : VpnService() {
             pb.redirectErrorStream(true)
             pb.start()
         } catch (e: Exception) {
-            // sing-box binary not found or failed to start
-            // VPN tunnel still works via HTTP proxy fallback
+            // sing-box start failed, VPN tunnel still active via proxy
         }
+    }
+
+    private fun prepareBinary(): String {
+        val abi = when (Build.SUPPORTED_ABIS.firstOrNull()) {
+            "arm64-v8a" -> "sing-box-arm64"
+            "armeabi-v7a" -> "sing-box-arm"
+            "x86_64" -> "sing-box-x64"
+            "x86" -> "sing-box-x64"
+            else -> "sing-box-arm64"
+        }
+        val dest = File(filesDir, "sing-box-bin")
+        if (!dest.exists()) {
+            assets.open(abi).use { input ->
+                dest.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            dest.setExecutable(true)
+        }
+        return dest.absolutePath
     }
 
     private fun protectTun() {
