@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:vpn_client/models/proxy_node.dart';
 import 'package:vpn_client/utils/link_parser.dart';
+import 'package:vpn_client/screens/scan_screen.dart';
 
 class AddNodeScreen extends StatefulWidget {
   final ValueChanged<ProxyNode> onSaved;
@@ -67,9 +68,19 @@ class _AddNodeScreenState extends State<AddNodeScreen> {
                   labelText: '快速导入',
                   hintText: '粘贴 ss:// 或 vmess:// 链接...',
                   prefixIcon: const Icon(Icons.link),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.arrow_forward),
-                    onPressed: _parseLink,
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.qr_code_scanner, size: 20),
+                        tooltip: '扫描二维码',
+                        onPressed: _scanQr,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.arrow_forward),
+                        onPressed: _parseLink,
+                      ),
+                    ],
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -257,6 +268,38 @@ class _AddNodeScreenState extends State<AddNodeScreen> {
       prefixIcon: icon != null ? Icon(icon, size: 20) : null,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    );
+  }
+
+  void _scanQr() async {
+    Navigator.push<ProxyNode>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ScanScreen(
+          onScanned: (node) {
+            setState(() {
+              _linkController.text = '';
+              _nameController.text = node.name;
+              _addressController.text = node.address;
+              _portController.text = node.port.toString();
+              _type = node.type;
+              if (node.type == ProxyType.vmess) {
+                _uuidController.text = node.vmessUuid ?? '';
+                _vmessNetwork = node.vmessNetwork ?? 'tcp';
+                _vmessSecurity = node.vmessSecurity ?? 'auto';
+                _vmessTls = node.vmessTls ?? 'none';
+                _vmessPath = node.vmessPath ?? '/';
+                _vmessHost = node.vmessHost ?? '';
+                _alterId = node.vmessAlterId ?? 0;
+              } else if (node.type == ProxyType.shadowsocks) {
+                _passwordController.text = node.ssPassword ?? '';
+                _ssMethod = node.ssMethod ?? 'aes-256-gcm';
+              }
+              _showManual = true;
+            });
+          },
+        ),
+      ),
     );
   }
 

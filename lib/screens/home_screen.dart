@@ -9,6 +9,7 @@ import 'package:vpn_client/widgets/traffic_chart.dart';
 import 'package:vpn_client/screens/node_list_screen.dart';
 import 'package:vpn_client/screens/subscription_screen.dart';
 import 'package:vpn_client/screens/settings_screen.dart';
+import 'package:vpn_client/screens/scan_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final VpnService vpnService;
@@ -61,9 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 IconButton(
                   icon: const Icon(Icons.qr_code_scanner),
                   tooltip: '扫描二维码',
-                  onPressed: () {
-                    // QR scan to import node
-                  },
+                  onPressed: () => _openScanner(context),
                 ),
               ],
             ),
@@ -320,6 +319,23 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+
+  void _openScanner(BuildContext context) async {
+    final node = await Navigator.push<ProxyNode>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ScanScreen(
+          onScanned: (node) {
+            widget.nodeService.addNode(node);
+            setState(() => _currentNode = node);
+          },
+        ),
+      ),
+    );
+    if (node != null && mounted) {
+      setState(() => _currentNode = node);
+    }
   }
 
   Color get _statusColor {
