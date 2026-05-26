@@ -328,13 +328,18 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_) => ScanScreen(
           onScanned: (node) {
             widget.nodeService.addNode(node);
-            setState(() => _currentNode = node);
           },
         ),
       ),
     );
     if (node != null && mounted) {
       setState(() => _currentNode = node);
+      // Auto-connect after scanning
+      if (_vpnState == VpnState.connected) {
+        await widget.vpnService.disconnect();
+      }
+      await widget.nodeService.markUsed(node);
+      await widget.vpnService.connect(node, widget.config);
     }
   }
 

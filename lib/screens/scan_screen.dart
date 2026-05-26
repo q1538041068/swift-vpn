@@ -163,7 +163,7 @@ class _ScanScreenState extends State<ScanScreen> {
     Future.delayed(const Duration(milliseconds: 600), () {
       if (mounted) {
         widget.onScanned(node);
-        Navigator.pop(context);
+        Navigator.pop(context, node);
       }
     });
   }
