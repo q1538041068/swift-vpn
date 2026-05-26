@@ -47,15 +47,21 @@ jobs:
             /tmp/gradle-8.3/bin/gradle wrapper --gradle-version 8.3
           fi
 
-      - name: Build APK (arm64 only)
+      - name: Build APK
         shell: bash
         run: |
           set +o pipefail
           flutter build apk --release --target-platform android-arm64 2>&1 | tee build.log
-          echo "---" >> build.log
-          echo "EXIT_CODE=$?" >> build.log
-          echo "---" >> build.log
-          find build/ -name "*.apk" 2>/dev/null >> build.log || echo "(no apk found)" >> build.log
+          rc=${PIPESTATUS[0]}
+          {
+            echo "---"
+            echo "EXIT_CODE=$rc"
+            echo "---"
+            find build/ -name "*.apk" 2>/dev/null || echo "(no apk found)"
+            echo "---"
+            ls -la build/app/outputs/flutter-apk/ 2>/dev/null || echo "(no flutter-apk dir)"
+          } >> build.log
+          exit $rc
 
       - name: Upload build log
         uses: actions/upload-artifact@v4
