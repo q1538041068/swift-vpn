@@ -47,10 +47,10 @@ jobs:
             /tmp/gradle-8.3/bin/gradle wrapper --gradle-version 8.3
           fi
 
-      - name: Build APK
+      - name: Build APK (arm64 only)
         run: |
-          flutter build apk --release --split-per-abi 2>&1 | tee build.log
-        continue-on-error: true
+          flutter build apk --release --target-platform android-arm64 2>&1 | tee build.log
+          echo "EXIT_CODE=$?" >> build.log
 
       - name: Upload build log
         uses: actions/upload-artifact@v4
@@ -59,9 +59,9 @@ jobs:
           name: build-log
           path: build.log
 
-      - name: Upload APKs
+      - name: Upload APK
         uses: actions/upload-artifact@v4
-        if: success()
+        if: always()
         with:
           name: swift-vpn-apk
           path: build/app/outputs/flutter-apk/*.apk
