@@ -32,15 +32,6 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.debug
-            ndk {
-                debugSymbolLevel "none"
-            }
-        }
-    }
-
-    packaging {
-        jniLibs {
-            useLegacyPackaging = true
         }
     }
 }
