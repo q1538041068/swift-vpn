@@ -29,14 +29,18 @@ android {
         versionName "1.0.0"
     }
 
-    // Don't strip Go-compiled .so (sing-box)
-    packagingOptions {
-        doNotStrip "**/*.so"
-    }
-
     buildTypes {
         release {
             signingConfig signingConfigs.debug
+            ndk {
+                debugSymbolLevel "none"
+            }
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
         }
     }
 }
