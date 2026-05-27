@@ -128,14 +128,6 @@ class SwiftVpnService : VpnService() {
     }
 
     private fun prepareBinary(): String {
-        // Use native lib dir for execution (works on all API levels)
-        val nativeDir = File(applicationInfo.nativeLibDir)
-        val dest = File(nativeDir, "libsing-box.so")
-        if (dest.exists() && dest.canExecute()) {
-            return dest.absolutePath
-        }
-
-        // Fallback: copy from assets to filesDir
         val abi = when (Build.SUPPORTED_ABIS.firstOrNull()) {
             "arm64-v8a" -> "sing-box-arm64"
             "armeabi-v7a" -> "sing-box-arm"
@@ -143,16 +135,16 @@ class SwiftVpnService : VpnService() {
             "x86" -> "sing-box-x64"
             else -> "sing-box-arm64"
         }
-        val fallback = File(filesDir, "sing-box-bin")
-        if (!fallback.exists()) {
+        val dest = File(filesDir, "sing-box-bin")
+        if (!dest.exists()) {
             assets.open(abi).use { input ->
-                fallback.outputStream().use { output ->
+                dest.outputStream().use { output ->
                     input.copyTo(output)
                 }
             }
-            fallback.setExecutable(true, false)
+            dest.setExecutable(true)
         }
-        return fallback.absolutePath
+        return dest.absolutePath
     }
 
     private fun protectTun() {
