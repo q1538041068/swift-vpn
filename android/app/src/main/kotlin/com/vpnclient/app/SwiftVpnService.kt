@@ -128,23 +128,7 @@ class SwiftVpnService : VpnService() {
     }
 
     private fun prepareBinary(): String {
-        val abi = when (Build.SUPPORTED_ABIS.firstOrNull()) {
-            "arm64-v8a" -> "sing-box-arm64"
-            "armeabi-v7a" -> "sing-box-arm"
-            "x86_64" -> "sing-box-x64"
-            "x86" -> "sing-box-x64"
-            else -> "sing-box-arm64"
-        }
-        val dest = File(filesDir, "sing-box-bin")
-        if (!dest.exists()) {
-            assets.open(abi).use { input ->
-                dest.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            }
-            dest.setExecutable(true)
-        }
-        return dest.absolutePath
+        return File(applicationInfo.nativeLibDir, "libsing-box.so").absolutePath
     }
 
     private fun protectTun() {

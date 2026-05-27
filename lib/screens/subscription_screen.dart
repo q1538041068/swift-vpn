@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:dio/dio.dart';
 import 'package:vpn_client/models/subscription.dart';
 import 'package:vpn_client/services/subscription_service.dart';
 import 'package:vpn_client/services/node_service.dart';
@@ -27,6 +29,87 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   void initState() {
     super.initState();
     _subs = widget.subService.getSubscriptions();
+    _checkClipboard();
+  }
+
+  Future<void> _checkClipboard() async {
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      final text = data?.text?.trim() ?? '';
+      if (_isValidSubUrl(text) && _subs.every((s) => s.url != text)) {
+        if (!mounted) return;
+        final use = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('检测到订阅链接'),
+            content: Text(
+              text.length > 80 ? '${text.substring(0, 80)}...' : text,
+              style: const TextStyle(fontSize: 13),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('忽略'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('一键导入'),
+              ),
+            ],
+          ),
+        );
+        if (use == true && mounted) {
+          await _quickImport(text);
+        }
+      }
+    } catch (_) {}
+  }
+
+  bool _isValidSubUrl(String url) {
+    return url.isNotEmpty &&
+        (url.startsWith('http://') || url.startsWith('https://')) &&
+        url.length > 20;
+  }
+
+  Future<void> _quickImport(String url) async {
+    setState(() => _updating = true);
+    try {
+      final name = '订阅 ${_subs.length + 1}';
+      final sub = Subscription(
+        id: 'sub_${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}',
+        name: name,
+        url: url,
+      );
+      await widget.subService.addSubscription(sub);
+
+      // Fetch and save nodes
+      final nodes = await widget.subService.fetchNodes(sub);
+      await widget.nodeService.addNodes(nodes);
+
+      setState(() {
+        _subs = widget.subService.getSubscriptions();
+        _updating = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('导入成功！获取到 ${nodes.length} 个节点'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _updating = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('导入失败: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -60,7 +143,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           ? _buildEmptyState()
           : ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: _subs.length + 1, // +1 for add button
+              itemCount: _subs.length + 1,
               itemBuilder: (context, index) {
                 if (index == _subs.length) {
                   return _buildAddCard();
@@ -92,25 +175,48 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '添加机场订阅链接，自动导入节点',
+            '复制订阅链接后打开此页面自动识别',
             style: TextStyle(color: Colors.grey.shade500),
           ),
           const SizedBox(height: 24),
           FilledButton.icon(
-            onPressed: () => _showAddDialog(),
-            icon: const Icon(Icons.add),
-            label: const Text('添加订阅'),
+            onPressed: () => _pasteAndImport(),
+            icon: const Icon(Icons.paste),
+            label: const Text('一键导入'),
           ),
         ],
       ),
     );
   }
 
+  Future<void> _pasteAndImport() async {
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      final text = data?.text?.trim() ?? '';
+      if (!_isValidSubUrl(text)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('剪贴板中没有检测到有效的订阅链接')),
+          );
+        }
+        return;
+      }
+      await _quickImport(text);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('读取剪贴板失败: $e')),
+        );
+      }
+    }
+  }
+
   Widget _buildSubscriptionCard(Subscription sub) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: Container(
           width: 44,
           height: 44,
@@ -135,7 +241,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             if (sub.lastUpdated != null)
               Text(
                 '更新于 ${_formatDate(sub.lastUpdated!)}',
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                style:
+                    TextStyle(color: Colors.grey.shade500, fontSize: 11),
               ),
           ],
         ),
@@ -158,12 +265,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   Widget _buildAddCard() {
     return OutlinedButton.icon(
-      onPressed: () => _showAddDialog(),
-      icon: const Icon(Icons.add),
-      label: const Text('添加订阅'),
+      onPressed: () => _pasteAndImport(),
+      icon: const Icon(Icons.paste),
+      label: const Text('从剪贴板导入'),
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -190,10 +298,20 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             const SizedBox(height: 12),
             TextField(
               controller: _urlController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: '订阅链接',
                 hintText: 'https://...',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.paste, size: 20),
+                  onPressed: () async {
+                    final data =
+                        await Clipboard.getData(Clipboard.kTextPlain);
+                    if (data?.text != null) {
+                      _urlController.text = data!.text!.trim();
+                    }
+                  },
+                ),
               ),
               keyboardType: TextInputType.url,
             ),
@@ -224,7 +342,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 _subs = widget.subService.getSubscriptions();
               });
 
-              // Fetch nodes immediately
               _updateSub(sub);
             },
             child: const Text('添加'),
@@ -238,10 +355,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     setState(() => _updating = true);
     try {
       final nodes = await widget.subService.fetchNodes(sub);
-      // Save fetched nodes via NodeService
       await widget.nodeService.addNodes(nodes);
-      // We need access to the actual StorageService to save nodes
-      // In production, this would be properly wired via DI
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('更新成功: 获取到 ${nodes.length} 个节点')),
