@@ -113,6 +113,9 @@ class SwiftVpnService : VpnService() {
             val configFile = File(configDir, "config.json")
             configFile.writeText(config)
 
+            // Write log to file
+            val logFile = File(configDir, "sing-box.log")
+
             val pb = ProcessBuilder(
                 binaryPath, "run",
                 "-c", configFile.absolutePath,
@@ -121,14 +124,25 @@ class SwiftVpnService : VpnService() {
             pb.directory(configDir)
             pb.environment()["HOME"] = configDir.absolutePath
             pb.redirectErrorStream(true)
+            pb.redirectOutput(logFile)
             pb.start()
         } catch (e: Exception) {
-            // sing-box failed silently, VPN tunnel still works
+            postError("sing-box start failed: ${e.message}")
         }
     }
 
     private fun prepareBinary(): String {
-        return File(applicationInfo.nativeLibDir, "libsing-box.so").absolutePath
+        val dest = File(filesDir, "sing-box-bin")
+        if (!dest.exists()) {
+            // Copy from assets to internal storage
+            assets.open("sing-box-arm64").use { input ->
+                dest.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            dest.setExecutable(true, false)
+        }
+        return dest.absolutePath
     }
 
     private fun protectTun() {

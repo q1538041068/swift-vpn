@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:dio/dio.dart';
 import 'package:vpn_client/models/subscription.dart';
 import 'package:vpn_client/services/subscription_service.dart';
 import 'package:vpn_client/services/node_service.dart';
