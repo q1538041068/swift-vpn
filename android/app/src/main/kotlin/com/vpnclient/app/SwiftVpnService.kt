@@ -9,11 +9,12 @@ import android.content.Intent
 import android.net.ProxyInfo
 import android.net.VpnService
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import java.io.File
 import java.io.FileInputStream
-import java.io.FileOutputStream
 import java.util.concurrent.Executors
 
 class SwiftVpnService : VpnService() {
@@ -31,6 +32,7 @@ class SwiftVpnService : VpnService() {
         var errorCallback: ((String) -> Unit)? = null
     }
 
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var vpnInterface: ParcelFileDescriptor? = null
     private var vpnThread: Thread? = null
     private var running = false
@@ -57,23 +59,29 @@ class SwiftVpnService : VpnService() {
         return START_STICKY
     }
 
+    private fun postState(state: String) {
+        mainHandler.post { stateCallback?.invoke(state) }
+    }
+
+    private fun postError(msg: String) {
+        mainHandler.post { errorCallback?.invoke(msg) }
+    }
+
     private fun startVpn(config: String, socksPort: Int, httpPort: Int, bypassLan: Boolean) {
         executor.execute {
             try {
-                stateCallback?.invoke("CONNECTING")
+                postState("CONNECTING")
 
-                startV2RayCore(config)
                 establishVpn(socksPort, bypassLan)
+                startV2RayCore(config)
                 startForeground(NOTIFICATION_ID, buildNotification("已连接"))
 
                 running = true
-                stateCallback?.invoke("CONNECTED")
-
-                // Keep reading from TUN to keep it alive
+                postState("CONNECTED")
                 protectTun()
             } catch (e: Exception) {
-                errorCallback?.invoke("VPN error: ${e.message}")
-                stateCallback?.invoke("ERROR")
+                postError("VPN error: ${e.message}")
+                postState("ERROR")
             }
         }
     }
@@ -87,11 +95,9 @@ class SwiftVpnService : VpnService() {
             .setMtu(VPN_MTU)
             .setBlocking(true)
 
-        // Route traffic through local SOCKS proxy (V2Ray/sing-box)
         builder.setHttpProxy(ProxyInfo.buildDirectProxy("127.0.0.1", socksPort))
 
         if (bypassLan) {
-            // Allow the app to bypass the VPN
             builder.addDisallowedApplication(packageName)
         }
 
@@ -117,11 +123,19 @@ class SwiftVpnService : VpnService() {
             pb.redirectErrorStream(true)
             pb.start()
         } catch (e: Exception) {
-            // sing-box start failed, VPN tunnel still active via proxy
+            // sing-box failed silently, VPN tunnel still works
         }
     }
 
     private fun prepareBinary(): String {
+        // Use native lib dir for execution (works on all API levels)
+        val nativeDir = File(applicationInfo.nativeLibDir)
+        val dest = File(nativeDir, "libsing-box.so")
+        if (dest.exists() && dest.canExecute()) {
+            return dest.absolutePath
+        }
+
+        // Fallback: copy from assets to filesDir
         val abi = when (Build.SUPPORTED_ABIS.firstOrNull()) {
             "arm64-v8a" -> "sing-box-arm64"
             "armeabi-v7a" -> "sing-box-arm"
@@ -129,16 +143,16 @@ class SwiftVpnService : VpnService() {
             "x86" -> "sing-box-x64"
             else -> "sing-box-arm64"
         }
-        val dest = File(filesDir, "sing-box-bin")
-        if (!dest.exists()) {
+        val fallback = File(filesDir, "sing-box-bin")
+        if (!fallback.exists()) {
             assets.open(abi).use { input ->
-                dest.outputStream().use { output ->
+                fallback.outputStream().use { output ->
                     input.copyTo(output)
                 }
             }
-            dest.setExecutable(true)
+            fallback.setExecutable(true, false)
         }
-        return dest.absolutePath
+        return fallback.absolutePath
     }
 
     private fun protectTun() {
@@ -168,9 +182,9 @@ class SwiftVpnService : VpnService() {
                 vpnInterface?.close()
                 vpnInterface = null
                 stopForeground(STOP_FOREGROUND_REMOVE)
-                stateCallback?.invoke("DISCONNECTED")
+                postState("DISCONNECTED")
             } catch (e: Exception) {
-                errorCallback?.invoke("Stop error: ${e.message}")
+                postError("Stop error: ${e.message}")
             }
         }
     }
